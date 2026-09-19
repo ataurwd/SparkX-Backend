@@ -29,6 +29,7 @@ import expenseRoutes from './modules/expense/expense.routes';
 import assetRoutes from './modules/asset/asset.routes';
 import offboardingRoutes from './modules/offboarding/offboarding.routes';
 import meetingRoutes from './modules/meeting/meeting.routes';
+import portalRoutes from './modules/portal/portal.routes';
 
 dotenv.config();
 
@@ -71,6 +72,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/offboarding', offboardingRoutes);
 app.use('/api/meetings', meetingRoutes);
+app.use('/api/portal', portalRoutes);
 
 // Root route
 app.get('/', (req, res) => {
