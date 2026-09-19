@@ -25,6 +25,10 @@ import subscriptionRoutes from './modules/subscription/subscription.routes';
 import settingsRoutes from './modules/settings/settings.routes';
 import notificationRoutes from './modules/notification/notification.routes';
 import onboardingRoutes from './modules/onboarding/onboarding.routes';
+import expenseRoutes from './modules/expense/expense.routes';
+import assetRoutes from './modules/asset/asset.routes';
+import offboardingRoutes from './modules/offboarding/offboarding.routes';
+import meetingRoutes from './modules/meeting/meeting.routes';
 
 dotenv.config();
 
@@ -63,6 +67,10 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/assets', assetRoutes);
+app.use('/api/offboarding', offboardingRoutes);
+app.use('/api/meetings', meetingRoutes);
 
 // Root route
 app.get('/', (req, res) => {
