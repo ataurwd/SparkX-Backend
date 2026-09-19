@@ -4,6 +4,8 @@ import { Employee } from '../../models/Employee';
 import { EmployeeDocument } from '../../models/EmployeeDocument';
 import { User } from '../../models/User';
 import { Role } from '../../models/Role';
+import { Department } from '../../models/Department';
+import { Designation } from '../../models/Designation';
 import { uploadToImgBB } from '../../utils/imgbb.service';
 
 export async function getEmployees(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -155,6 +157,16 @@ export async function createEmployee(req: AuthenticatedRequest, res: Response): 
       });
     }
 
+    // Resolve departmentId if department string name was sent
+    let finalDeptId = departmentId;
+    if (!finalDeptId && req.body.department) {
+      const dept = await Department.findOne({
+        organizationId,
+        $or: [{ name: req.body.department }, { code: req.body.department }]
+      });
+      if (dept) finalDeptId = dept._id;
+    }
+
     const employee = await Employee.create({
       organizationId,
       userId: user._id,
@@ -164,7 +176,7 @@ export async function createEmployee(req: AuthenticatedRequest, res: Response): 
       email: cleanEmail,
       phone,
       avatarUrl: avatarUrl || user.avatarUrl,
-      departmentId: departmentId || undefined,
+      departmentId: finalDeptId || undefined,
       designationId: designationId || undefined,
       teamId: teamId || undefined,
       managerId: managerId || undefined,
@@ -177,7 +189,13 @@ export async function createEmployee(req: AuthenticatedRequest, res: Response): 
       address
     });
 
-    res.status(201).json({ success: true, data: employee });
+    const populated = await Employee.findById(employee._id)
+      .populate('departmentId', 'name color code')
+      .populate('designationId', 'title level')
+      .populate('teamId', 'name')
+      .populate('managerId', 'firstName lastName email avatarUrl employeeCode');
+
+    res.status(201).json({ success: true, data: populated || employee });
   } catch (error: any) {
     console.error('[Create Employee Error]:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -188,12 +206,28 @@ export async function updateEmployee(req: AuthenticatedRequest, res: Response): 
   try {
     const organizationId = req.user!.organizationId;
     const { id } = req.params;
+    const updateData: any = { ...req.body };
+
+    // Resolve departmentId if department string was provided
+    if (!updateData.departmentId && updateData.department) {
+      const dept = await Department.findOne({
+        organizationId,
+        $or: [{ name: updateData.department }, { code: updateData.department }]
+      });
+      if (dept) {
+        updateData.departmentId = dept._id;
+      }
+    }
 
     const employee = await Employee.findOneAndUpdate(
       { _id: id, organizationId },
-      { $set: req.body },
+      { $set: updateData },
       { new: true }
-    );
+    )
+      .populate('departmentId', 'name color code')
+      .populate('designationId', 'title level')
+      .populate('teamId', 'name')
+      .populate('managerId', 'firstName lastName email avatarUrl employeeCode');
 
     if (!employee) {
       res.status(404).json({ success: false, error: 'Employee not found' });

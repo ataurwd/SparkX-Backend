@@ -5,23 +5,50 @@ import { Team } from '../../models/Team';
 import { Designation } from '../../models/Designation';
 import { Role } from '../../models/Role';
 import { User } from '../../models/User';
+import { Employee } from '../../models/Employee';
 
 // --- DEPARTMENTS ---
 export async function getDepartments(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const organizationId = req.user!.organizationId;
-    const departments = await Department.find({ organizationId })
+    let departments = await Department.find({ organizationId })
       .populate('managerId', 'firstName lastName email avatarUrl')
       .populate('parentDepartmentId', 'name')
       .sort({ name: 1 });
 
-    // Count members in each department
+    // Auto-seed default departments if none exist
+    if (departments.length === 0) {
+      const defaultDepts = [
+        { name: 'Engineering & Technology', code: 'ENG', color: '#6C5CE7', organizationId },
+        { name: 'Product & Design', code: 'PRD', color: '#00B894', organizationId },
+        { name: 'Sales & Revenue', code: 'SLS', color: '#10B981', organizationId },
+        { name: 'Human Resources & People Ops', code: 'HRO', color: '#F59E0B', organizationId },
+        { name: 'Finance & Accounting', code: 'FIN', color: '#0EA5E9', organizationId }
+      ];
+      await Department.insertMany(defaultDepts);
+      departments = await Department.find({ organizationId })
+        .populate('managerId', 'firstName lastName email avatarUrl')
+        .populate('parentDepartmentId', 'name')
+        .sort({ name: 1 });
+    }
+
+    // Count members in each department in real-time
     const deptStats = await Promise.all(
       departments.map(async (dept) => {
-        const teamCount = await Team.countDocuments({ departmentId: dept._id });
+        const [teamCount, employeesCount, members] = await Promise.all([
+          Team.countDocuments({ organizationId, departmentId: dept._id }),
+          Employee.countDocuments({ organizationId, departmentId: dept._id }),
+          Employee.find({ organizationId, departmentId: dept._id })
+            .select('firstName lastName email avatarUrl employeeCode')
+            .limit(6)
+        ]);
+
         return {
           ...dept.toObject(),
-          teamCount
+          teamCount,
+          teamsCount: teamCount,
+          employeesCount,
+          members
         };
       })
     );
@@ -228,3 +255,59 @@ export async function getOrgTree(req: AuthenticatedRequest, res: Response): Prom
     res.status(500).json({ success: false, error: error.message });
   }
 }
+
+// Assign employee to department
+export async function assignEmployeeToDepartment(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const organizationId = req.user!.organizationId;
+    const { id: departmentId } = req.params;
+    const { employeeId } = req.body;
+
+    if (!employeeId) {
+      res.status(400).json({ success: false, error: 'employeeId is required' });
+      return;
+    }
+
+    const dept = await Department.findOne({ _id: departmentId, organizationId });
+    if (!dept) {
+      res.status(404).json({ success: false, error: 'Department not found' });
+      return;
+    }
+
+    const employee = await Employee.findOneAndUpdate(
+      { _id: employeeId, organizationId },
+      { departmentId: dept._id },
+      { new: true }
+    ).populate('departmentId', 'name color code');
+
+    if (!employee) {
+      res.status(404).json({ success: false, error: 'Employee not found' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully assigned ${employee.firstName} ${employee.lastName} to ${dept.name}`,
+      data: employee
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+// Get all employees in a specific department
+export async function getDepartmentEmployees(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const organizationId = req.user!.organizationId;
+    const { id: departmentId } = req.params;
+
+    const employees = await Employee.find({ organizationId, departmentId })
+      .populate('designationId', 'title')
+      .sort({ firstName: 1 });
+
+    res.status(200).json({ success: true, data: employees });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+

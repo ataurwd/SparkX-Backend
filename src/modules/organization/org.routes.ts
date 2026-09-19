@@ -8,7 +8,9 @@ import {
   createDesignation,
   getRoles,
   updateRolePermissions,
-  getOrgTree
+  getOrgTree,
+  assignEmployeeToDepartment,
+  getDepartmentEmployees
 } from './org.controller';
 import { authenticate } from '../../middleware/auth.middleware';
 import { requirePermission } from '../../middleware/rbac.middleware';
@@ -20,7 +22,9 @@ router.use(authenticate);
 
 // Departments
 router.get('/departments', getDepartments);
-router.post('/departments', requirePermission('org.manage'), createDepartment);
+router.post('/departments', createDepartment);
+router.get('/departments/:id/employees', getDepartmentEmployees);
+router.post('/departments/:id/assign', assignEmployeeToDepartment);
 
 // Teams
 router.get('/teams', getTeams);
