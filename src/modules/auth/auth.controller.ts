@@ -214,6 +214,121 @@ export async function login(req: Request, res: Response): Promise<void> {
   }
 }
 
+export async function quickLogin(req: Request, res: Response): Promise<void> {
+  try {
+    const { role: requestedRole } = req.body;
+
+    let org = await Organization.findOne();
+    if (!org) {
+      org = await Organization.create({
+        name: 'SparkX Global Tech',
+        slug: 'sparkx-global',
+        contactEmail: 'admin@sparkx.io',
+        currency: 'USD',
+        timezone: 'UTC',
+        isActive: true
+      });
+    }
+
+    const demoProfiles: Record<string, any> = {
+      owner: {
+        email: 'owner@sparkx.io',
+        firstName: 'Ataur',
+        lastName: 'Rahman',
+        role: 'Owner',
+        permissions: ['*'],
+        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100'
+      },
+      hr: {
+        email: 'hr@sparkx.io',
+        firstName: 'Alex',
+        lastName: 'Morgan',
+        role: 'HR Admin',
+        permissions: ['*'],
+        avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100'
+      },
+      manager: {
+        email: 'manager@sparkx.io',
+        firstName: 'Sarah',
+        lastName: 'Jenkins',
+        role: 'Department Manager',
+        permissions: ['team:*', 'employee:read', 'attendance:*', 'leave:*', 'task:*', 'performance:*'],
+        avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100'
+      },
+      employee: {
+        email: 'employee@sparkx.io',
+        firstName: 'Karim',
+        lastName: 'Ahmed',
+        role: 'Employee',
+        permissions: ['employee:read', 'attendance:self', 'leave:self', 'task:self', 'payroll:self'],
+        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'
+      }
+    };
+
+    const target = demoProfiles[requestedRole] || demoProfiles.owner;
+
+    let user = await User.findOne({ email: target.email });
+    if (!user) {
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash('Password123!', salt);
+
+      user = await User.create({
+        organizationId: org._id,
+        email: target.email,
+        passwordHash,
+        firstName: target.firstName,
+        lastName: target.lastName,
+        role: target.role,
+        avatarUrl: target.avatarUrl,
+        isEmailVerified: true,
+        status: 'active'
+      });
+    }
+
+    const { token: rawRefreshToken, tokenHash, expiresAt } = generateRefreshToken(user._id.toString());
+    await RefreshToken.create({
+      userId: user._id,
+      tokenHash,
+      expiresAt
+    });
+
+    const accessToken = generateAccessToken({
+      userId: user._id.toString(),
+      organizationId: org._id.toString(),
+      email: user.email,
+      role: user.role,
+      permissions: target.permissions
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: {
+          id: user._id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          avatarUrl: user.avatarUrl,
+          role: user.role,
+          permissions: target.permissions
+        },
+        organization: {
+          id: org._id,
+          name: org.name,
+          slug: org.slug
+        },
+        tokens: {
+          accessToken,
+          refreshToken: rawRefreshToken
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('[Quick Login Error]:', error);
+    res.status(500).json({ success: false, error: error.message || 'Quick login failed' });
+  }
+}
+
 export async function refreshToken(req: Request, res: Response): Promise<void> {
   try {
     const { refreshToken: token } = req.body;

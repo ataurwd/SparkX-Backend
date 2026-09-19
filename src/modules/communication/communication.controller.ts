@@ -7,10 +7,73 @@ import { User } from '../../models/User';
 
 // ----------------- MESSAGING -----------------
 
+const seedChatMessages = async (orgId: any, userId: any) => {
+  const count = await Message.countDocuments({ organizationId: orgId });
+  if (count > 0) return;
+
+  const demoMessages = [
+    {
+      organizationId: orgId,
+      conversationType: 'channel',
+      channelName: '#general',
+      participants: [userId],
+      senderId: userId,
+      senderName: 'Ataur Rahman',
+      senderAvatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+      content: 'Welcome everyone to the SparkX Company Operating System workspace! All Q3 milestones are tracking on target.',
+      readBy: [userId],
+      createdAt: new Date(Date.now() - 4 * 3600 * 1000)
+    },
+    {
+      organizationId: orgId,
+      conversationType: 'channel',
+      channelName: '#general',
+      participants: [userId],
+      senderId: userId,
+      senderName: 'Alex Morgan',
+      senderAvatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100',
+      content: 'Reminder: New onboarding checklists and asset management desks are live under the HR Operations tab.',
+      readBy: [userId],
+      createdAt: new Date(Date.now() - 2 * 3600 * 1000)
+    },
+    {
+      organizationId: orgId,
+      conversationType: 'channel',
+      channelName: '#engineering',
+      participants: [userId],
+      senderId: userId,
+      senderName: 'Sarah Jenkins',
+      senderAvatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100',
+      content: 'Sprint 42 deployed cleanly. All 43 frontend routes and API endpoints passed CI test suites.',
+      readBy: [userId],
+      createdAt: new Date(Date.now() - 1 * 3600 * 1000)
+    },
+    {
+      organizationId: orgId,
+      conversationType: 'channel',
+      channelName: '#product-design',
+      participants: [userId],
+      senderId: userId,
+      senderName: 'David Chen',
+      senderAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100',
+      content: 'Strict solid color design system with zero gradients has been verified on both light and dark modes.',
+      readBy: [userId],
+      createdAt: new Date(Date.now() - 30 * 60 * 1000)
+    }
+  ];
+
+  await Message.insertMany(demoMessages);
+};
+
 export const getMessages = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const orgId = req.user?.organizationId;
+    const userId = req.user?.userId;
     const { channelName, conversationType, recipientId } = req.query;
+
+    if (orgId && userId) {
+      await seedChatMessages(orgId, userId);
+    }
 
     const filter: any = { organizationId: orgId };
     if (conversationType === 'direct' && recipientId) {
@@ -44,6 +107,7 @@ export const sendMessage = async (req: AuthenticatedRequest, res: Response): Pro
 
     const user = await User.findById(userId);
     const senderName = user ? `${user.firstName} ${user.lastName}` : 'Team Member';
+    const senderAvatar = user?.avatarUrl || '';
 
     const participants = [userId];
     if (recipientId) participants.push(recipientId);
@@ -55,6 +119,7 @@ export const sendMessage = async (req: AuthenticatedRequest, res: Response): Pro
       participants,
       senderId: userId,
       senderName,
+      senderAvatar,
       content: content.trim(),
       attachments: attachments || [],
       readBy: [userId]
