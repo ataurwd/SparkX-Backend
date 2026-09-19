@@ -19,6 +19,7 @@ import goalRoutes from './modules/goal/goal.routes';
 import reviewRoutes from './modules/review/review.routes';
 import recruitmentRoutes from './modules/recruitment/recruitment.routes';
 import communicationRoutes from './modules/communication/communication.routes';
+import analyticsRoutes from './modules/analytics/analytics.routes';
 
 dotenv.config();
 
@@ -51,6 +52,7 @@ app.use('/api/goals', goalRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/recruitment', recruitmentRoutes);
 app.use('/api', communicationRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Root route
 app.get('/', (req, res) => {
