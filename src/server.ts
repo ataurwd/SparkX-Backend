@@ -17,6 +17,8 @@ import taskRoutes from './modules/task/task.routes';
 import progressRoutes from './modules/progress/progress.routes';
 import goalRoutes from './modules/goal/goal.routes';
 import reviewRoutes from './modules/review/review.routes';
+import recruitmentRoutes from './modules/recruitment/recruitment.routes';
+import communicationRoutes from './modules/communication/communication.routes';
 
 dotenv.config();
 
@@ -47,6 +49,8 @@ app.use('/api/tasks', taskRoutes);
 app.use('/api/progress', progressRoutes);
 app.use('/api/goals', goalRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/recruitment', recruitmentRoutes);
+app.use('/api', communicationRoutes);
 
 // Root route
 app.get('/', (req, res) => {
