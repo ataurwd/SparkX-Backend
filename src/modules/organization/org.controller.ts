@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import { Department } from '../../models/Department';
 import { Team } from '../../models/Team';
@@ -6,6 +7,7 @@ import { Designation } from '../../models/Designation';
 import { Role } from '../../models/Role';
 import { User } from '../../models/User';
 import { Employee } from '../../models/Employee';
+import { seedOrganizationRoles } from '../../utils/roles.seed';
 
 // --- DEPARTMENTS ---
 export async function getDepartments(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -176,8 +178,145 @@ export async function createDesignation(req: AuthenticatedRequest, res: Response
 export async function getRoles(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
     const organizationId = req.user!.organizationId;
-    const roles = await Role.find({ organizationId }).sort({ createdAt: 1 });
-    res.status(200).json({ success: true, data: roles });
+    let roles = await Role.find({ organizationId }).sort({ createdAt: 1 });
+
+    // Auto-seed standard system roles if none exist
+    if (roles.length === 0) {
+      await seedOrganizationRoles(new mongoose.Types.ObjectId(organizationId));
+      roles = await Role.find({ organizationId }).sort({ createdAt: 1 });
+    }
+
+    const rolesWithCounts = await Promise.all(
+      roles.map(async (r) => {
+        const membersCount = await Employee.countDocuments({
+          organizationId,
+          $or: [{ role: r.name }, { roleId: r._id }]
+        });
+        return {
+          ...r.toObject(),
+          membersCount
+        };
+      })
+    );
+
+    res.status(200).json({ success: true, data: rolesWithCounts });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+export async function createRole(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const organizationId = req.user!.organizationId;
+    const { name, description, permissions } = req.body;
+
+    if (!name || !name.trim()) {
+      res.status(400).json({ success: false, error: 'Role name is required' });
+      return;
+    }
+
+    const existing = await Role.findOne({ organizationId, name: name.trim() });
+    if (existing) {
+      res.status(400).json({ success: false, error: `Role '${name.trim()}' already exists` });
+      return;
+    }
+
+    const role = await Role.create({
+      organizationId,
+      name: name.trim(),
+      description: description ? description.trim() : `Custom role: ${name.trim()}`,
+      permissions: Array.isArray(permissions) ? permissions : [],
+      isSystemRole: false
+    });
+
+    res.status(201).json({
+      success: true,
+      message: `Role '${role.name}' created successfully in MongoDB Atlas`,
+      data: role
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+export async function assignUserRole(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const organizationId = req.user!.organizationId;
+    const { employeeId, roleName, roleId } = req.body;
+
+    if (!employeeId || (!roleName && !roleId)) {
+      res.status(400).json({ success: false, error: 'employeeId and roleName (or roleId) are required' });
+      return;
+    }
+
+    let targetRole = null;
+    if (roleId) {
+      targetRole = await Role.findOne({ _id: roleId, organizationId });
+    }
+    if (!targetRole && roleName) {
+      targetRole = await Role.findOne({ name: roleName, organizationId });
+    }
+
+    const finalRoleName = targetRole ? targetRole.name : roleName;
+
+    const employee = await Employee.findOneAndUpdate(
+      { _id: employeeId, organizationId },
+      {
+        role: finalRoleName,
+        roleId: targetRole?._id
+      },
+      { new: true }
+    ).populate('departmentId', 'name color code');
+
+    if (!employee) {
+      res.status(404).json({ success: false, error: 'Employee not found' });
+      return;
+    }
+
+    if (employee.userId) {
+      await User.updateOne(
+        { _id: employee.userId },
+        {
+          role: finalRoleName,
+          roleId: targetRole?._id
+        }
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully assigned role '${finalRoleName}' to ${employee.firstName} ${employee.lastName}`,
+      data: employee
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+export async function getRoleAssignments(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const organizationId = req.user!.organizationId;
+
+    const employees = await Employee.find({ organizationId })
+      .populate('departmentId', 'name color code')
+      .populate('designationId', 'title level')
+      .sort({ firstName: 1 });
+
+    const assignments = employees.map((emp: any) => ({
+      id: emp._id,
+      code: emp.employeeCode,
+      name: `${emp.firstName} ${emp.lastName}`,
+      email: emp.email,
+      avatarUrl: emp.avatarUrl,
+      department: emp.departmentId ? emp.departmentId.name : 'Unassigned',
+      departmentId: emp.departmentId ? emp.departmentId._id : null,
+      departmentColor: emp.departmentId ? emp.departmentId.color : '#6C5CE7',
+      designation: emp.designationId ? emp.designationId.title : 'Staff Member',
+      role: emp.role || 'Employee',
+      status: emp.employmentStatus || 'active'
+    }));
+
+    res.status(200).json({ success: true, data: assignments });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

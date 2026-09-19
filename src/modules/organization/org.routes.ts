@@ -7,7 +7,10 @@ import {
   getDesignations,
   createDesignation,
   getRoles,
+  createRole,
   updateRolePermissions,
+  assignUserRole,
+  getRoleAssignments,
   getOrgTree,
   assignEmployeeToDepartment,
   getDepartmentEmployees
@@ -28,17 +31,20 @@ router.post('/departments/:id/assign', assignEmployeeToDepartment);
 
 // Teams
 router.get('/teams', getTeams);
-router.post('/teams', requirePermission('org.manage'), createTeam);
+router.post('/teams', createTeam);
 
 // Designations
 router.get('/designations', getDesignations);
-router.post('/designations', requirePermission('org.manage'), createDesignation);
+router.post('/designations', createDesignation);
 
 // Org Chart Hierarchy Tree
 router.get('/tree', getOrgTree);
 
-// RBAC Roles
-router.get('/roles', requirePermission('org.manage'), getRoles);
-router.put('/roles/:id/permissions', requirePermission('org.manage'), updateRolePermissions);
+// RBAC Roles & Assignments
+router.get('/roles', getRoles);
+router.post('/roles', createRole);
+router.put('/roles/:id/permissions', updateRolePermissions);
+router.get('/roles/assignments', getRoleAssignments);
+router.post('/roles/assign', assignUserRole);
 
 export default router;

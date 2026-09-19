@@ -13,6 +13,8 @@ export interface IEmployee extends Document {
   teamId?: mongoose.Types.ObjectId;
   designationId?: mongoose.Types.ObjectId;
   managerId?: mongoose.Types.ObjectId;
+  role?: string;
+  roleId?: mongoose.Types.ObjectId;
   gender?: string;
   dateOfBirth?: Date;
   joiningDate: Date;
@@ -53,6 +55,8 @@ const EmployeeSchema: Schema = new Schema(
     teamId: { type: Schema.Types.ObjectId, ref: 'Team' },
     designationId: { type: Schema.Types.ObjectId, ref: 'Designation' },
     managerId: { type: Schema.Types.ObjectId, ref: 'Employee' },
+    role: { type: String, default: 'Employee', index: true },
+    roleId: { type: Schema.Types.ObjectId, ref: 'Role' },
     gender: { type: String, enum: ['male', 'female', 'other'] },
     dateOfBirth: { type: Date },
     joiningDate: { type: Date, required: true, default: Date.now },

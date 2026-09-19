@@ -140,21 +140,40 @@ export async function createEmployee(req: AuthenticatedRequest, res: Response): 
       return;
     }
 
+    // Resolve role if provided
+    let assignedRoleName = req.body.role || 'Employee';
+    let assignedRoleId = req.body.roleId;
+    if (assignedRoleId && !req.body.role) {
+      const foundRole = await Role.findOne({ _id: assignedRoleId, organizationId });
+      if (foundRole) assignedRoleName = foundRole.name;
+    } else if (assignedRoleName && !assignedRoleId) {
+      const foundRole = await Role.findOne({ name: assignedRoleName, organizationId });
+      if (foundRole) assignedRoleId = foundRole._id;
+    }
+
     // Check if user already exists or provision user account
     let user = await User.findOne({ organizationId, email: cleanEmail });
     if (!user) {
-      const empRole = await Role.findOne({ organizationId, name: 'Employee' });
       user = await User.create({
         organizationId,
         email: cleanEmail,
         firstName,
         lastName,
-        role: 'Employee',
-        roleId: empRole?._id,
+        role: assignedRoleName,
+        roleId: assignedRoleId,
         avatarUrl,
         status: 'active',
         isEmailVerified: false
       });
+    } else {
+      // Update existing user's role if provided
+      await User.updateOne(
+        { _id: user._id },
+        {
+          role: assignedRoleName,
+          roleId: assignedRoleId
+        }
+      );
     }
 
     // Resolve departmentId if department string name was sent
@@ -176,6 +195,8 @@ export async function createEmployee(req: AuthenticatedRequest, res: Response): 
       email: cleanEmail,
       phone,
       avatarUrl: avatarUrl || user.avatarUrl,
+      role: assignedRoleName,
+      roleId: assignedRoleId,
       departmentId: finalDeptId || undefined,
       designationId: designationId || undefined,
       teamId: teamId || undefined,
@@ -219,6 +240,19 @@ export async function updateEmployee(req: AuthenticatedRequest, res: Response): 
       }
     }
 
+    // Resolve role if role name was provided
+    if (updateData.role && !updateData.roleId) {
+      const roleDoc = await Role.findOne({ organizationId, name: updateData.role });
+      if (roleDoc) {
+        updateData.roleId = roleDoc._id;
+      }
+    } else if (updateData.roleId && !updateData.role) {
+      const roleDoc = await Role.findOne({ organizationId, _id: updateData.roleId });
+      if (roleDoc) {
+        updateData.role = roleDoc.name;
+      }
+    }
+
     const employee = await Employee.findOneAndUpdate(
       { _id: id, organizationId },
       { $set: updateData },
@@ -236,15 +270,17 @@ export async function updateEmployee(req: AuthenticatedRequest, res: Response): 
 
     // Keep associated user in sync
     if (employee.userId) {
+      const userUpdate: any = {
+        firstName: employee.firstName,
+        lastName: employee.lastName,
+        avatarUrl: employee.avatarUrl
+      };
+      if (employee.role) userUpdate.role = employee.role;
+      if (employee.roleId) userUpdate.roleId = employee.roleId;
+
       await User.updateOne(
         { _id: employee.userId },
-        {
-          $set: {
-            firstName: employee.firstName,
-            lastName: employee.lastName,
-            avatarUrl: employee.avatarUrl
-          }
-        }
+        { $set: userUpdate }
       );
     }
 
