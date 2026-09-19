@@ -11,6 +11,7 @@ import orgRoutes from './modules/organization/org.routes';
 import employeeRoutes from './modules/employee/employee.routes';
 import attendanceRoutes from './modules/attendance/attendance.routes';
 import leaveRoutes from './modules/leave/leave.routes';
+import payrollRoutes from './modules/payroll/payroll.routes';
 
 dotenv.config();
 
@@ -35,6 +36,7 @@ app.use('/api/org', orgRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/leave', leaveRoutes);
+app.use('/api/payroll', payrollRoutes);
 
 // Root route
 app.get('/', (req, res) => {
