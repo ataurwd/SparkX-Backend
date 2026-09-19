@@ -12,6 +12,9 @@ import employeeRoutes from './modules/employee/employee.routes';
 import attendanceRoutes from './modules/attendance/attendance.routes';
 import leaveRoutes from './modules/leave/leave.routes';
 import payrollRoutes from './modules/payroll/payroll.routes';
+import projectRoutes from './modules/project/project.routes';
+import taskRoutes from './modules/task/task.routes';
+import progressRoutes from './modules/progress/progress.routes';
 
 dotenv.config();
 
@@ -37,6 +40,9 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/leave', leaveRoutes);
 app.use('/api/payroll', payrollRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/tasks', taskRoutes);
+app.use('/api/progress', progressRoutes);
 
 // Root route
 app.get('/', (req, res) => {
