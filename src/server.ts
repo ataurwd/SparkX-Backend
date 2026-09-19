@@ -23,6 +23,8 @@ import analyticsRoutes from './modules/analytics/analytics.routes';
 import auditRoutes from './modules/audit/audit.routes';
 import subscriptionRoutes from './modules/subscription/subscription.routes';
 import settingsRoutes from './modules/settings/settings.routes';
+import notificationRoutes from './modules/notification/notification.routes';
+import onboardingRoutes from './modules/onboarding/onboarding.routes';
 
 dotenv.config();
 
@@ -59,6 +61,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/audit-logs', auditRoutes);
 app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 
 // Root route
 app.get('/', (req, res) => {
