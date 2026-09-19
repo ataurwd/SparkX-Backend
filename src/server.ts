@@ -15,6 +15,8 @@ import payrollRoutes from './modules/payroll/payroll.routes';
 import projectRoutes from './modules/project/project.routes';
 import taskRoutes from './modules/task/task.routes';
 import progressRoutes from './modules/progress/progress.routes';
+import goalRoutes from './modules/goal/goal.routes';
+import reviewRoutes from './modules/review/review.routes';
 
 dotenv.config();
 
@@ -43,6 +45,8 @@ app.use('/api/payroll', payrollRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/goals', goalRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Root route
 app.get('/', (req, res) => {
