@@ -20,6 +20,9 @@ import reviewRoutes from './modules/review/review.routes';
 import recruitmentRoutes from './modules/recruitment/recruitment.routes';
 import communicationRoutes from './modules/communication/communication.routes';
 import analyticsRoutes from './modules/analytics/analytics.routes';
+import auditRoutes from './modules/audit/audit.routes';
+import subscriptionRoutes from './modules/subscription/subscription.routes';
+import settingsRoutes from './modules/settings/settings.routes';
 
 dotenv.config();
 
@@ -53,6 +56,9 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/recruitment', recruitmentRoutes);
 app.use('/api', communicationRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/audit-logs', auditRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Root route
 app.get('/', (req, res) => {

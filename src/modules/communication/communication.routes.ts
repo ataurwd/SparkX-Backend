@@ -12,19 +12,17 @@ import {
 
 const router = Router();
 
-router.use(authenticate);
-
 // Messages
-router.get('/messages', getMessages);
-router.post('/messages', sendMessage);
+router.get('/messages', authenticate, getMessages);
+router.post('/messages', authenticate, sendMessage);
 
 // Announcements
 router.get('/announcements', getAnnouncements);
-router.post('/announcements', createAnnouncement);
-router.put('/announcements/:id/acknowledge', acknowledgeAnnouncement);
+router.post('/announcements', authenticate, createAnnouncement);
+router.put('/announcements/:id/acknowledge', authenticate, acknowledgeAnnouncement);
 
 // Calendar & Meetings
 router.get('/calendar/events', getCalendarEvents);
-router.post('/calendar/events', createCalendarEvent);
+router.post('/calendar/events', authenticate, createCalendarEvent);
 
 export default router;
