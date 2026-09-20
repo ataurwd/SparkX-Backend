@@ -186,6 +186,7 @@ export const createAsset = async (req: Request, res: Response) => {
       purchaseCost,
       condition,
       notes,
+      employeeId,
       assignedEmployeeName,
       department
     } = req.body;
@@ -193,7 +194,7 @@ export const createAsset = async (req: Request, res: Response) => {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const assetTag = `AST-${randomSuffix}`;
 
-    const isAssigned = !!assignedEmployeeName;
+    const isAssigned = !!employeeId || !!assignedEmployeeName;
 
     const asset = await Asset.create({
       organizationId: org._id,
@@ -206,7 +207,8 @@ export const createAsset = async (req: Request, res: Response) => {
       status: isAssigned ? 'assigned' : 'available',
       assignedTo: isAssigned
         ? {
-            employeeName: assignedEmployeeName,
+            employeeId: employeeId ? new mongoose.Types.ObjectId(employeeId) : undefined,
+            employeeName: assignedEmployeeName || 'Employee',
             department: department || 'Engineering'
           }
         : undefined,
@@ -224,7 +226,7 @@ export const createAsset = async (req: Request, res: Response) => {
 export const assignAsset = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { employeeName, department, unassign } = req.body;
+    const { employeeId, employeeName, department, unassign } = req.body;
 
     const asset = await Asset.findById(id);
     if (!asset) {
@@ -237,6 +239,7 @@ export const assignAsset = async (req: Request, res: Response) => {
       asset.status = 'available';
     } else {
       asset.assignedTo = {
+        employeeId: employeeId ? new mongoose.Types.ObjectId(employeeId) : undefined,
         employeeName: employeeName || 'Employee',
         department: department || 'Operations'
       };

@@ -102,11 +102,44 @@ export async function getTeams(req: AuthenticatedRequest, res: Response): Promis
     if (departmentId) query.departmentId = departmentId;
 
     const teams = await Team.find(query)
-      .populate('departmentId', 'name color')
-      .populate('leadId', 'firstName lastName email avatarUrl')
+      .populate('departmentId', 'name color code')
+      .populate({
+        path: 'leadId',
+        select: 'firstName lastName email avatarUrl employeeCode role designationId',
+        populate: { path: 'designationId', select: 'title level' }
+      })
       .sort({ name: 1 });
 
-    res.status(200).json({ success: true, data: teams });
+    // Fetch members for each team and attach
+    const teamsWithMembers = await Promise.all(
+      teams.map(async (t) => {
+        const members = await Employee.find({ organizationId, teamId: t._id })
+          .populate('designationId', 'title level')
+          .populate('departmentId', 'name color')
+          .select('firstName lastName email avatarUrl employeeCode role designationId departmentId employmentStatus joiningDate');
+
+        const teamObj: any = t.toObject();
+        return {
+          ...teamObj,
+          membersCount: members.length,
+          members: members.map((m: any) => ({
+            id: m._id,
+            employeeCode: m.employeeCode,
+            name: `${m.firstName} ${m.lastName}`,
+            email: m.email,
+            avatarUrl: m.avatarUrl,
+            designation: m.designationId ? m.designationId.title : 'Staff Member',
+            designationLevel: m.designationId ? m.designationId.level : 'Mid',
+            department: m.departmentId ? m.departmentId.name : (teamObj.departmentId?.name || 'General'),
+            role: m.role || 'Employee',
+            status: m.employmentStatus || 'active',
+            joiningDate: m.joiningDate
+          }))
+        };
+      })
+    );
+
+    res.status(200).json({ success: true, data: teamsWithMembers });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -130,7 +163,132 @@ export async function createTeam(req: AuthenticatedRequest, res: Response): Prom
       description
     });
 
-    res.status(201).json({ success: true, data: team });
+    if (leadId) {
+      await Employee.updateOne(
+        { _id: leadId, organizationId },
+        { teamId: team._id, ...(departmentId ? { departmentId } : {}) }
+      );
+    }
+
+    const populatedTeam = await Team.findById(team._id)
+      .populate('departmentId', 'name color code')
+      .populate({
+        path: 'leadId',
+        select: 'firstName lastName email avatarUrl employeeCode role designationId',
+        populate: { path: 'designationId', select: 'title level' }
+      });
+
+    res.status(201).json({ success: true, data: populatedTeam });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+export async function assignTeamMember(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const organizationId = req.user!.organizationId;
+    const { id: teamId } = req.params;
+    const { employeeId } = req.body;
+
+    if (!employeeId) {
+      res.status(400).json({ success: false, error: 'employeeId is required' });
+      return;
+    }
+
+    const team = await Team.findOne({ _id: teamId, organizationId });
+    if (!team) {
+      res.status(404).json({ success: false, error: 'Team not found' });
+      return;
+    }
+
+    const employee = await Employee.findOneAndUpdate(
+      { _id: employeeId, organizationId },
+      { 
+        teamId: team._id,
+        ...(team.departmentId ? { departmentId: team.departmentId } : {})
+      },
+      { new: true }
+    )
+      .populate('departmentId', 'name color code')
+      .populate('designationId', 'title level')
+      .populate('teamId', 'name');
+
+    if (!employee) {
+      res.status(404).json({ success: false, error: 'Employee not found' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Successfully assigned ${employee.firstName} ${employee.lastName} to ${team.name}`,
+      data: employee
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+export async function removeTeamMember(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const organizationId = req.user!.organizationId;
+    const { id: teamId, employeeId } = req.params;
+
+    const employee = await Employee.findOneAndUpdate(
+      { _id: employeeId, organizationId, teamId },
+      { $unset: { teamId: 1 } },
+      { new: true }
+    );
+
+    if (!employee) {
+      res.status(404).json({ success: false, error: 'Employee not found in this team' });
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Removed ${employee.firstName} ${employee.lastName} from team`,
+      data: employee
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+export async function updateTeamLead(req: AuthenticatedRequest, res: Response): Promise<void> {
+  try {
+    const organizationId = req.user!.organizationId;
+    const { id: teamId } = req.params;
+    const { leadId } = req.body;
+
+    const team = await Team.findOneAndUpdate(
+      { _id: teamId, organizationId },
+      { leadId: leadId || undefined },
+      { new: true }
+    )
+      .populate('departmentId', 'name color code')
+      .populate({
+        path: 'leadId',
+        select: 'firstName lastName email avatarUrl employeeCode role designationId',
+        populate: { path: 'designationId', select: 'title level' }
+      });
+
+    if (!team) {
+      res.status(404).json({ success: false, error: 'Team not found' });
+      return;
+    }
+
+    if (leadId) {
+      await Employee.updateOne(
+        { _id: leadId, organizationId },
+        { teamId: team._id, ...(team.departmentId ? { departmentId: team.departmentId } : {}) }
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Team leader updated successfully',
+      data: team
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -358,33 +516,103 @@ export async function getOrgTree(req: AuthenticatedRequest, res: Response): Prom
     // Fetch leadership / CEO
     const owner = await User.findOne({ organizationId, role: 'Owner' }).select('firstName lastName email avatarUrl role');
     const departments = await Department.find({ organizationId }).populate('managerId', 'firstName lastName email avatarUrl');
-    const teams = await Team.find({ organizationId }).populate('leadId', 'firstName lastName email avatarUrl');
+    const teams = await Team.find({ organizationId })
+      .populate({
+        path: 'leadId',
+        select: 'firstName lastName email avatarUrl employeeCode role designationId',
+        populate: { path: 'designationId', select: 'title level' }
+      });
+
+    // Fetch all employees in organization populated with designations
+    const allEmployees = await Employee.find({ organizationId })
+      .populate('designationId', 'title level')
+      .select('firstName lastName email avatarUrl departmentId teamId designationId employeeCode role employmentStatus');
 
     const tree = {
       title: owner ? `${owner.firstName} ${owner.lastName}` : 'Executive Leadership',
       role: 'CEO / Board',
+      designation: 'Chief Executive Officer',
       email: owner?.email,
       avatarUrl: owner?.avatarUrl,
       type: 'root',
       children: departments.map((dept) => {
         const deptTeams = teams.filter((t) => t.departmentId.toString() === dept._id.toString());
         const manager: any = dept.managerId;
+
+        // Find employees in this department who are NOT in any team
+        const deptUnassignedMembers = allEmployees.filter(
+          (emp) => emp.departmentId && emp.departmentId.toString() === dept._id.toString() && !emp.teamId
+        );
+
         return {
           id: dept._id,
           title: dept.name,
           code: dept.code,
           role: manager ? `HOD: ${manager.firstName} ${manager.lastName}` : 'Head of Department',
+          managerName: manager ? `${manager.firstName} ${manager.lastName}` : undefined,
           color: dept.color,
           type: 'department',
-          children: deptTeams.map((team) => {
-            const lead: any = team.leadId;
-            return {
-              id: team._id,
-              title: team.name,
-              role: lead ? `Lead: ${lead.firstName} ${lead.lastName}` : 'Team Lead',
-              type: 'team'
-            };
-          })
+          children: [
+            ...deptTeams.map((team) => {
+              const lead: any = team.leadId;
+              const leadDesignation = lead?.designationId?.title || lead?.role || 'Team Leader';
+
+              // Team members assigned to this team
+              const teamMembers = allEmployees.filter(
+                (emp) => emp.teamId && emp.teamId.toString() === team._id.toString()
+              );
+
+              return {
+                id: team._id,
+                title: team.name,
+                role: lead ? `Team Lead: ${lead.firstName} ${lead.lastName}` : 'Team Lead',
+                leadName: lead ? `${lead.firstName} ${lead.lastName}` : 'Unassigned',
+                leadEmail: lead?.email,
+                leadAvatar: lead?.avatarUrl,
+                leadDesignation: leadDesignation,
+                designation: leadDesignation,
+                color: dept.color,
+                type: 'team',
+                membersCount: teamMembers.length,
+                children: teamMembers.map((member: any) => ({
+                  id: member._id,
+                  name: `${member.firstName} ${member.lastName}`,
+                  title: `${member.firstName} ${member.lastName}`,
+                  role: member.role || 'Team Member',
+                  designation: member.designationId ? member.designationId.title : 'Staff Specialist',
+                  employeeCode: member.employeeCode,
+                  email: member.email,
+                  avatarUrl: member.avatarUrl,
+                  department: dept.name,
+                  color: dept.color,
+                  type: 'member'
+                }))
+              };
+            }),
+            ...(deptUnassignedMembers.length > 0 ? [{
+              id: `unassigned-${dept._id}`,
+              title: `${dept.name} Direct Staff`,
+              role: 'Department Staff',
+              leadName: 'Direct Department Roster',
+              designation: 'Department Staff',
+              color: dept.color,
+              type: 'team',
+              membersCount: deptUnassignedMembers.length,
+              children: deptUnassignedMembers.map((member: any) => ({
+                id: member._id,
+                name: `${member.firstName} ${member.lastName}`,
+                title: `${member.firstName} ${member.lastName}`,
+                role: member.role || 'Staff',
+                designation: member.designationId ? member.designationId.title : 'Staff Specialist',
+                employeeCode: member.employeeCode,
+                email: member.email,
+                avatarUrl: member.avatarUrl,
+                department: dept.name,
+                color: dept.color,
+                type: 'member'
+              }))
+            }] : [])
+          ]
         };
       })
     };

@@ -46,6 +46,14 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '20mb' }));
 app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
+// Support both /api/* and root level endpoints seamlessly
+app.use((req, res, next) => {
+  if (!req.url.startsWith('/api/') && req.url !== '/' && req.url !== '/api') {
+    req.url = `/api${req.url}`;
+  }
+  next();
+});
+
 // Core API Routes
 app.get('/api/health', getHealth);
 app.post('/api/upload/image', uploadImageHandler);

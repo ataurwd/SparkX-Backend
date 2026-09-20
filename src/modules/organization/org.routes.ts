@@ -4,6 +4,9 @@ import {
   createDepartment,
   getTeams,
   createTeam,
+  assignTeamMember,
+  removeTeamMember,
+  updateTeamLead,
   getDesignations,
   createDesignation,
   getRoles,
@@ -32,6 +35,9 @@ router.post('/departments/:id/assign', assignEmployeeToDepartment);
 // Teams
 router.get('/teams', getTeams);
 router.post('/teams', createTeam);
+router.post('/teams/:id/members', assignTeamMember);
+router.delete('/teams/:id/members/:employeeId', removeTeamMember);
+router.patch('/teams/:id/lead', updateTeamLead);
 
 // Designations
 router.get('/designations', getDesignations);
