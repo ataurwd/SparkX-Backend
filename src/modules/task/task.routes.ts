@@ -1,21 +1,23 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/auth.middleware';
+import { authenticate, optionalAuthenticate } from '../../middleware/auth.middleware';
 import {
   getTasks,
   createTask,
   updateTaskStatus,
   updateTask,
   deleteTask,
-  getMyTasks
+  getMyTasks,
+  addCommentToTask
 } from './task.controller';
 
 const router = Router();
 
-router.get('/', authenticate, getTasks);
+router.get('/', optionalAuthenticate, getTasks);
 router.get('/my-tasks', authenticate, getMyTasks);
-router.post('/', authenticate, createTask);
-router.put('/:id/status', authenticate, updateTaskStatus);
-router.put('/:id', authenticate, updateTask);
-router.delete('/:id', authenticate, deleteTask);
+router.post('/', optionalAuthenticate, createTask);
+router.put('/:id/status', optionalAuthenticate, updateTaskStatus);
+router.put('/:id', optionalAuthenticate, updateTask);
+router.delete('/:id', optionalAuthenticate, deleteTask);
+router.post('/:id/comments', optionalAuthenticate, addCommentToTask);
 
 export default router;

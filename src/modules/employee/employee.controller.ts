@@ -6,11 +6,16 @@ import { User } from '../../models/User';
 import { Role } from '../../models/Role';
 import { Department } from '../../models/Department';
 import { Designation } from '../../models/Designation';
+import { Organization } from '../../models/Organization';
 import { uploadToImgBB } from '../../utils/imgbb.service';
 
 export async function getEmployees(req: AuthenticatedRequest, res: Response): Promise<void> {
   try {
-    const organizationId = req.user!.organizationId;
+    let organizationId = req.user?.organizationId;
+    if (!organizationId) {
+      const org = await Organization.findOne();
+      organizationId = org?._id;
+    }
     const {
       search,
       departmentId,

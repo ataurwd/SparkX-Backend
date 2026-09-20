@@ -9,6 +9,15 @@ export interface ISubtask {
   completed: boolean;
 }
 
+export interface ITaskComment {
+  _id?: mongoose.Types.ObjectId;
+  authorName: string;
+  authorAvatar?: string;
+  authorRole?: string;
+  content: string;
+  createdAt?: Date;
+}
+
 export interface ITask extends Document {
   organizationId: mongoose.Types.ObjectId;
   projectId: mongoose.Types.ObjectId;
@@ -23,6 +32,7 @@ export interface ITask extends Document {
   estimatedHours: number;
   loggedHours: number;
   subtasks: ISubtask[];
+  comments: ITaskComment[];
   tags: string[];
   createdAt: Date;
   updatedAt: Date;
@@ -32,6 +42,16 @@ const SubtaskSchema = new Schema({
   title: { type: String, required: true, trim: true },
   completed: { type: Boolean, default: false }
 });
+
+const CommentSchema = new Schema(
+  {
+    authorName: { type: String, required: true, trim: true },
+    authorAvatar: { type: String },
+    authorRole: { type: String, default: 'Team Member' },
+    content: { type: String, required: true, trim: true }
+  },
+  { timestamps: true }
+);
 
 const TaskSchema: Schema = new Schema(
   {
@@ -58,6 +78,7 @@ const TaskSchema: Schema = new Schema(
     estimatedHours: { type: Number, default: 0 },
     loggedHours: { type: Number, default: 0 },
     subtasks: [SubtaskSchema],
+    comments: [CommentSchema],
     tags: [{ type: String, trim: true }]
   },
   {

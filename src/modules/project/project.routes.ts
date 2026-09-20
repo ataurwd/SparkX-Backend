@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate } from '../../middleware/auth.middleware';
+import { authenticate, optionalAuthenticate } from '../../middleware/auth.middleware';
 import { requirePermission } from '../../middleware/rbac.middleware';
 import {
   getProjects,
@@ -11,8 +11,8 @@ import {
 
 const router = Router();
 
-router.get('/', authenticate, getProjects);
-router.get('/:id', authenticate, getProjectById);
+router.get('/', optionalAuthenticate, getProjects);
+router.get('/:id', optionalAuthenticate, getProjectById);
 router.post('/', authenticate, requirePermission('projects.create'), createProject);
 router.put('/:id', authenticate, requirePermission('projects.edit'), updateProject);
 router.delete('/:id', authenticate, requirePermission('projects.delete'), deleteProject);
