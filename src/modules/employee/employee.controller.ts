@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import bcrypt from 'bcryptjs';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import { Employee } from '../../models/Employee';
 import { EmployeeDocument } from '../../models/EmployeeDocument';
@@ -109,6 +110,7 @@ export async function createEmployee(req: AuthenticatedRequest, res: Response): 
       firstName,
       lastName,
       email,
+      password,
       phone,
       employeeCode,
       departmentId,
@@ -131,6 +133,13 @@ export async function createEmployee(req: AuthenticatedRequest, res: Response): 
     }
 
     const cleanEmail = email.toLowerCase().trim();
+
+    // Hash password for employee login account (defaults to Password123! if omitted)
+    const rawPassword = (password && typeof password === 'string' && password.trim())
+      ? password.trim()
+      : 'Password123!';
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(rawPassword, salt);
 
     // Auto-generate employee code if missing
     let code = employeeCode ? employeeCode.trim().toUpperCase() : '';
@@ -156,28 +165,33 @@ export async function createEmployee(req: AuthenticatedRequest, res: Response): 
       if (foundRole) assignedRoleId = foundRole._id;
     }
 
-    // Check if user already exists or provision user account
+    // Check if user already exists or provision user account with login credentials
     let user = await User.findOne({ organizationId, email: cleanEmail });
     if (!user) {
       user = await User.create({
         organizationId,
         email: cleanEmail,
+        passwordHash,
         firstName,
         lastName,
         role: assignedRoleName,
         roleId: assignedRoleId,
         avatarUrl,
         status: 'active',
-        isEmailVerified: false
+        isEmailVerified: true
       });
     } else {
-      // Update existing user's role if provided
+      // Update existing user's role and password if provided
+      const userUpdates: any = {
+        role: assignedRoleName,
+        roleId: assignedRoleId
+      };
+      if (password && typeof password === 'string' && password.trim()) {
+        userUpdates.passwordHash = passwordHash;
+      }
       await User.updateOne(
         { _id: user._id },
-        {
-          role: assignedRoleName,
-          roleId: assignedRoleId
-        }
+        { $set: userUpdates }
       );
     }
 
@@ -258,6 +272,13 @@ export async function updateEmployee(req: AuthenticatedRequest, res: Response): 
       }
     }
 
+    let newPasswordHash: string | undefined;
+    if (updateData.password && typeof updateData.password === 'string' && updateData.password.trim()) {
+      const salt = await bcrypt.genSalt(10);
+      newPasswordHash = await bcrypt.hash(updateData.password.trim(), salt);
+    }
+    delete updateData.password;
+
     const employee = await Employee.findOneAndUpdate(
       { _id: id, organizationId },
       { $set: updateData },
@@ -282,6 +303,7 @@ export async function updateEmployee(req: AuthenticatedRequest, res: Response): 
       };
       if (employee.role) userUpdate.role = employee.role;
       if (employee.roleId) userUpdate.roleId = employee.roleId;
+      if (newPasswordHash) userUpdate.passwordHash = newPasswordHash;
 
       await User.updateOne(
         { _id: employee.userId },
