@@ -11,7 +11,6 @@ export interface IUser extends Document {
   roleId?: mongoose.Types.ObjectId;
   status: 'active' | 'invited' | 'suspended';
   isEmailVerified: boolean;
-  googleId?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -27,8 +26,7 @@ const UserSchema: Schema = new Schema(
     role: { type: String, default: 'Employee' },
     roleId: { type: Schema.Types.ObjectId, ref: 'Role' },
     status: { type: String, enum: ['active', 'invited', 'suspended'], default: 'active' },
-    isEmailVerified: { type: Boolean, default: false },
-    googleId: { type: String }
+    isEmailVerified: { type: Boolean, default: false }
   },
   { timestamps: true }
 );

@@ -5,7 +5,6 @@ import {
   refreshToken,
   logout,
   getMe,
-  googleAuth,
   quickLogin
 } from './auth.controller';
 import { authenticate } from '../../middleware/auth.middleware';
@@ -17,7 +16,6 @@ router.post('/login', login);
 router.post('/quick-login', quickLogin);
 router.post('/refresh', refreshToken);
 router.post('/logout', logout);
-router.post('/google', googleAuth);
 router.get('/me', authenticate, getMe);
 
 export default router;

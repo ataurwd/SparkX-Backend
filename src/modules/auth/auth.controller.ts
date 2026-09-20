@@ -146,7 +146,7 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     if (!user.passwordHash) {
-      res.status(401).json({ success: false, error: 'Please log in with Google OAuth' });
+      res.status(401).json({ success: false, error: 'Password not set for this account. Please reset your password.' });
       return;
     }
 
@@ -491,104 +491,3 @@ export async function getMe(req: AuthenticatedRequest, res: Response): Promise<v
   }
 }
 
-export async function googleAuth(req: Request, res: Response): Promise<void> {
-  try {
-    const { email, googleId, firstName, lastName, avatarUrl, organizationName } = req.body;
-
-    if (!email || !googleId) {
-      res.status(400).json({ success: false, error: 'Google authentication data required' });
-      return;
-    }
-
-    let user = await User.findOne({ email: email.toLowerCase().trim() });
-    let organization;
-
-    if (!user) {
-      // Create new tenant organization if registering via Google
-      const orgName = organizationName || `${firstName}'s Workspace`;
-      const baseSlug = slugify(orgName);
-      let slug = baseSlug;
-      let counter = 1;
-      while (await Organization.findOne({ slug })) {
-        slug = `${baseSlug}-${counter++}`;
-      }
-
-      organization = await Organization.create({
-        name: orgName,
-        slug,
-        isActive: true
-      });
-
-      await seedOrganizationRoles(organization._id as mongoose.Types.ObjectId);
-      const ownerRole = await Role.findOne({ organizationId: organization._id, name: 'Owner' });
-
-      user = await User.create({
-        organizationId: organization._id,
-        email: email.toLowerCase().trim(),
-        firstName: firstName || 'User',
-        lastName: lastName || '',
-        avatarUrl,
-        googleId,
-        role: 'Owner',
-        roleId: ownerRole?._id,
-        isEmailVerified: true,
-        status: 'active'
-      });
-    } else {
-      organization = await Organization.findById(user.organizationId);
-      if (!user.googleId) {
-        user.googleId = googleId;
-        if (avatarUrl && !user.avatarUrl) user.avatarUrl = avatarUrl;
-        await user.save();
-      }
-    }
-
-    let permissions: string[] = ['*'];
-    if (user.roleId) {
-      const role = await Role.findById(user.roleId);
-      if (role) permissions = role.permissions;
-    }
-
-    const { token: rawRefreshToken, tokenHash, expiresAt } = generateRefreshToken(user._id.toString());
-    await RefreshToken.create({
-      userId: user._id,
-      tokenHash,
-      expiresAt
-    });
-
-    const accessToken = generateAccessToken({
-      userId: user._id.toString(),
-      organizationId: user.organizationId.toString(),
-      email: user.email,
-      role: user.role,
-      permissions
-    });
-
-    res.status(200).json({
-      success: true,
-      data: {
-        user: {
-          id: user._id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          avatarUrl: user.avatarUrl,
-          role: user.role,
-          permissions
-        },
-        organization: {
-          id: organization?._id,
-          name: organization?.name,
-          slug: organization?.slug
-        },
-        tokens: {
-          accessToken,
-          refreshToken: rawRefreshToken
-        }
-      }
-    });
-  } catch (error: any) {
-    console.error('[Google OAuth Error]:', error);
-    res.status(500).json({ success: false, error: error.message || 'Google authentication failed' });
-  }
-}
