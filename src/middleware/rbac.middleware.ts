@@ -17,8 +17,38 @@ export function requirePermission(permission: string) {
       return next();
     }
 
+    // Essential self-service operations inherently granted to all authenticated staff:
+    const selfServicePermissions = [
+      'leave.apply',
+      'leave.read',
+      'attendance.checkin',
+      'tasks.read',
+      'tasks.update_status',
+      'goals.read',
+      'payslip.view_own',
+      'chat.participate',
+      'calendar.view'
+    ];
+    if (selfServicePermissions.includes(permission)) {
+      return next();
+    }
+
     const userPermissions = req.user.permissions || [];
     if (userPermissions.includes(permission) || userPermissions.includes('*')) {
+      return next();
+    }
+
+    // Check category prefix / aliases (e.g. 'leave:*', 'leave.*', 'leave:self', 'attendance:self')
+    const prefix = permission.split('.')[0];
+    const hasAlias = userPermissions.some((p: string) => {
+      if (p === '*' || p === permission) return true;
+      if (p === `${prefix}:*` || p === `${prefix}.*` || p === `${prefix}:self` || p === `${prefix}.self`) {
+        return true;
+      }
+      return false;
+    });
+
+    if (hasAlias) {
       return next();
     }
 

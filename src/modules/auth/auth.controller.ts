@@ -10,7 +10,7 @@ import {
   generateRefreshToken,
   hashRefreshToken
 } from '../../utils/token.service';
-import { seedOrganizationRoles } from '../../utils/roles.seed';
+import { seedOrganizationRoles, SYSTEM_ROLE_PERMISSIONS } from '../../utils/roles.seed';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 
 function slugify(text: string): string {
@@ -163,10 +163,12 @@ export async function login(req: Request, res: Response): Promise<void> {
     }
 
     // Fetch Role Permissions
-    let permissions: string[] = ['*'];
+    let permissions: string[] = user.role === 'Owner' || user.role === 'Super Admin' ? ['*'] : [];
     if (user.roleId) {
       const role = await Role.findById(user.roleId);
       if (role) permissions = role.permissions;
+    } else if (SYSTEM_ROLE_PERMISSIONS[user.role]) {
+      permissions = SYSTEM_ROLE_PERMISSIONS[user.role];
     }
 
     // Generate Tokens
@@ -252,7 +254,13 @@ export async function quickLogin(req: Request, res: Response): Promise<void> {
         firstName: 'Sarah',
         lastName: 'Jenkins',
         role: 'Department Manager',
-        permissions: ['team:*', 'employee:read', 'attendance:*', 'leave:*', 'task:*', 'performance:*'],
+        permissions: [
+          'employees.read', 'team.manage', 'attendance.read', 'attendance.checkin',
+          'leave.read', 'leave.apply', 'leave.approve_manager',
+          'projects.read', 'projects.manage', 'projects.create', 'projects.edit',
+          'tasks.manage', 'tasks.read', 'tasks.update_status', 'performance.evaluate',
+          'team:*', 'employee:read', 'attendance:*', 'leave:*', 'task:*', 'performance:*'
+        ],
         avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100'
       },
       employee: {
@@ -260,7 +268,25 @@ export async function quickLogin(req: Request, res: Response): Promise<void> {
         firstName: 'Karim',
         lastName: 'Ahmed',
         role: 'Employee',
-        permissions: ['employee:read', 'attendance:self', 'leave:self', 'task:self', 'payroll:self'],
+        permissions: [
+          'attendance.checkin',
+          'leave.apply',
+          'leave.read',
+          'tasks.read',
+          'tasks.update_status',
+          'goals.read',
+          'goals.update',
+          'payslip.view_own',
+          'chat.participate',
+          'calendar.view',
+          'projects.read',
+          'employees.read',
+          'employee:read',
+          'attendance:self',
+          'leave:self',
+          'task:self',
+          'payroll:self'
+        ],
         avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100'
       }
     };
@@ -357,10 +383,12 @@ export async function refreshToken(req: Request, res: Response): Promise<void> {
     }
 
     // Fetch Role Permissions
-    let permissions: string[] = ['*'];
+    let permissions: string[] = user.role === 'Owner' || user.role === 'Super Admin' ? ['*'] : [];
     if (user.roleId) {
       const role = await Role.findById(user.roleId);
       if (role) permissions = role.permissions;
+    } else if (SYSTEM_ROLE_PERMISSIONS[user.role]) {
+      permissions = SYSTEM_ROLE_PERMISSIONS[user.role];
     }
 
     // Generate new pair
@@ -419,10 +447,12 @@ export async function getMe(req: AuthenticatedRequest, res: Response): Promise<v
 
     const organization = await Organization.findById(user.organizationId);
 
-    let permissions: string[] = ['*'];
+    let permissions: string[] = user.role === 'Owner' || user.role === 'Super Admin' ? ['*'] : [];
     if (user.roleId) {
       const role = await Role.findById(user.roleId);
       if (role) permissions = role.permissions;
+    } else if (SYSTEM_ROLE_PERMISSIONS[user.role]) {
+      permissions = SYSTEM_ROLE_PERMISSIONS[user.role];
     }
 
     res.status(200).json({
