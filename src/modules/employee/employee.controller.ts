@@ -14,7 +14,7 @@ export async function getEmployees(req: AuthenticatedRequest, res: Response): Pr
     let organizationId = req.user?.organizationId;
     if (!organizationId) {
       const org = await Organization.findOne();
-      organizationId = org?._id;
+      organizationId = org?._id?.toString();
     }
     const {
       search,

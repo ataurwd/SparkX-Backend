@@ -76,7 +76,9 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response): Pro
     }
 
     const filter: any = { organizationId: orgId };
-    if (conversationType === 'direct' && recipientId) {
+    if (channelName && String(channelName).startsWith('dm_')) {
+      filter.channelName = String(channelName);
+    } else if (conversationType === 'direct' && recipientId) {
       filter.conversationType = 'direct';
       filter.participants = { $all: [req.user?.userId, recipientId] };
     } else {
@@ -86,7 +88,7 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response): Pro
 
     const messages = await Message.find(filter)
       .sort({ createdAt: 1 })
-      .limit(100);
+      .limit(150);
 
     res.status(200).json({ success: true, data: messages });
   } catch (error: any) {
@@ -105,16 +107,42 @@ export const sendMessage = async (req: AuthenticatedRequest, res: Response): Pro
       return;
     }
 
+    // Role check for #announcements channel: only management and HR can broadcast
+    if (channelName === '#announcements') {
+      const userRole = (req.user?.role || '').toLowerCase();
+      const isPrivileged =
+        userRole.includes('owner') ||
+        userRole.includes('hr') ||
+        userRole.includes('admin') ||
+        userRole.includes('manager') ||
+        userRole.includes('lead') ||
+        userRole.includes('director') ||
+        userRole.includes('ceo');
+
+      if (!isPrivileged) {
+        res.status(403).json({
+          success: false,
+          message: 'Only Executives, HR Administrators, and Managers can post in #announcements.'
+        });
+        return;
+      }
+    }
+
     const user = await User.findById(userId);
     const senderName = user ? `${user.firstName} ${user.lastName}` : 'Team Member';
     const senderAvatar = user?.avatarUrl || '';
 
+    const isDirect = conversationType === 'direct' || (channelName && String(channelName).startsWith('dm_'));
     const participants = [userId];
-    if (recipientId) participants.push(recipientId);
+    if (recipientId && String(recipientId) !== String(userId)) {
+      try {
+        participants.push(recipientId);
+      } catch {}
+    }
 
     const message = new Message({
       organizationId: orgId,
-      conversationType: conversationType || 'channel',
+      conversationType: isDirect ? 'direct' : 'channel',
       channelName: channelName || '#general',
       participants,
       senderId: userId,
@@ -161,6 +189,25 @@ export const createAnnouncement = async (req: AuthenticatedRequest, res: Respons
 
     if (!title || !content) {
       res.status(400).json({ success: false, message: 'Title and content are required' });
+      return;
+    }
+
+    // Role verification: only management and HR can broadcast official announcements
+    const userRole = (req.user?.role || '').toLowerCase();
+    const isPrivileged =
+      userRole.includes('owner') ||
+      userRole.includes('hr') ||
+      userRole.includes('admin') ||
+      userRole.includes('manager') ||
+      userRole.includes('lead') ||
+      userRole.includes('director') ||
+      userRole.includes('ceo');
+
+    if (!isPrivileged) {
+      res.status(403).json({
+        success: false,
+        message: 'Only Executives, HR Administrators, and Managers can create company announcements.'
+      });
       return;
     }
 

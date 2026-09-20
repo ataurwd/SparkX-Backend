@@ -246,7 +246,12 @@ export async function quickLogin(req: Request, res: Response): Promise<void> {
         firstName: 'Alex',
         lastName: 'Morgan',
         role: 'HR Admin',
-        permissions: ['*'],
+        permissions: [
+          'employees.*', 'attendance.*', 'leave.*', 'recruitment.*',
+          'onboarding.*', 'offboarding.*', 'payroll.*', 'expense.*',
+          'performance.*', 'projects.read', 'tasks.read', 'tasks.manage',
+          'announcements.*', 'chat.*', 'calendar.*', 'reports.*'
+        ],
         avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=100'
       },
       manager: {
@@ -309,6 +314,12 @@ export async function quickLogin(req: Request, res: Response): Promise<void> {
         isEmailVerified: true,
         status: 'active'
       });
+    } else if (user.role !== target.role || user.firstName !== target.firstName) {
+      user.role = target.role;
+      user.firstName = target.firstName;
+      user.lastName = target.lastName;
+      user.avatarUrl = target.avatarUrl;
+      await user.save();
     }
 
     const { token: rawRefreshToken, tokenHash, expiresAt } = generateRefreshToken(user._id.toString());

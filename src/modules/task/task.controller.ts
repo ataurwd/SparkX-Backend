@@ -25,7 +25,7 @@ export const getTasks = async (req: AuthenticatedRequest, res: Response): Promis
     let orgId = req.user?.organizationId;
     if (!orgId) {
       const org = await Organization.findOne();
-      orgId = org?._id;
+      orgId = org?._id?.toString();
     }
 
     const { projectId, status, priority, assigneeId, search } = req.query;
@@ -88,7 +88,7 @@ export const createTask = async (req: AuthenticatedRequest, res: Response): Prom
     let orgId = req.user?.organizationId;
     if (!orgId) {
       const org = await Organization.findOne();
-      orgId = org?._id;
+      orgId = org?._id?.toString();
     }
 
     const {
@@ -183,7 +183,7 @@ export const updateTaskStatus = async (req: AuthenticatedRequest, res: Response)
     let orgId = req.user?.organizationId;
     if (!orgId) {
       const org = await Organization.findOne();
-      orgId = org?._id;
+      orgId = org?._id?.toString();
     }
 
     const validStatuses: TaskStatus[] = ['todo', 'in_progress', 'review', 'completed', 'blocked'];
@@ -228,7 +228,7 @@ export const updateTask = async (req: AuthenticatedRequest, res: Response): Prom
     let orgId = req.user?.organizationId;
     if (!orgId) {
       const org = await Organization.findOne();
-      orgId = org?._id;
+      orgId = org?._id?.toString();
     }
 
     let task: any = null;
@@ -272,7 +272,7 @@ export const deleteTask = async (req: AuthenticatedRequest, res: Response): Prom
     let orgId = req.user?.organizationId;
     if (!orgId) {
       const org = await Organization.findOne();
-      orgId = org?._id;
+      orgId = org?._id?.toString();
     }
 
     // Role check: Only HR and Upper Management can delete tasks
