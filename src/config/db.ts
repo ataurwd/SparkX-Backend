@@ -1,11 +1,13 @@
 import mongoose from 'mongoose';
 import dns from 'dns';
 
-// Fix Node.js Windows c-ares SRV lookup issue for MongoDB Atlas
-try {
-  dns.setServers(['8.8.8.8', '1.1.1.1']);
-} catch (e) {
-  // Ignore if permissions or platform restricts custom DNS
+// Fix Node.js Windows c-ares SRV lookup issue for MongoDB Atlas (ONLY on Windows)
+if (process.platform === 'win32') {
+  try {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+  } catch (e) {
+    // Ignore if permissions or platform restricts custom DNS
+  }
 }
 
 export const TARGET_DB_NAME = 'sparkx_db';
@@ -37,27 +39,62 @@ export function formatMongoUri(rawUri: string): string {
   return uri;
 }
 
-export async function connectDB(): Promise<void> {
-  const rawUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/sparkx_db';
+interface MongooseCache {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+}
+
+declare global {
+  var mongooseConnection: MongooseCache | undefined;
+}
+
+let cached: MongooseCache = global.mongooseConnection || { conn: null, promise: null };
+if (!global.mongooseConnection) {
+  global.mongooseConnection = cached;
+}
+
+export async function connectDB(): Promise<typeof mongoose> {
+  // If connection is already open and ready, reuse it immediately
+  if (mongoose.connection.readyState === 1) {
+    return mongoose;
+  }
+
+  if (cached.conn && cached.conn.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  const rawUri = process.env.MONGODB_URI;
+  if (!rawUri) {
+    const errMessage = '[Database Error] MONGODB_URI is not defined! Please set MONGODB_URI in your Vercel Dashboard (Project Settings -> Environment Variables).';
+    console.error(errMessage);
+    throw new Error(errMessage);
+  }
+
   const uri = formatMongoUri(rawUri);
 
-  try {
-    // Setting dbName explicitly forces Mongoose to use 'sparkx_db'
-    await mongoose.connect(uri, {
+  if (!cached.promise) {
+    const opts: mongoose.ConnectOptions = {
       dbName: TARGET_DB_NAME,
-      autoIndex: true,
-      serverSelectionTimeoutMS: 10000
+      autoIndex: process.env.NODE_ENV !== 'production',
+      serverSelectionTimeoutMS: 8000, // Fail fast if unreachable (e.g. Atlas IP whitelist missing)
+      bufferCommands: false // Do not hang for 10000ms if connection is not ready
+    };
+
+    console.log(`[Database] Connecting to MongoDB Atlas (${TARGET_DB_NAME})...`);
+    cached.promise = mongoose.connect(uri, opts).then((m) => {
+      const activeDbName = m.connection.name;
+      console.log(`[Database] Successfully connected to MongoDB Atlas! Active DB: "${activeDbName}"`);
+      return m;
     });
+  }
 
-    const activeDbName = mongoose.connection.name;
-    console.log(`[Database] Successfully connected to MongoDB Atlas!`);
-    console.log(`[Database] Active Database: "${activeDbName}" (Verified target: ${TARGET_DB_NAME})`);
-
-    if (activeDbName !== TARGET_DB_NAME) {
-      console.error(`[Database Critical Error] Connected to '${activeDbName}' instead of '${TARGET_DB_NAME}'. Forcing useDb('${TARGET_DB_NAME}')...`);
-      mongoose.connection.useDb(TARGET_DB_NAME);
-    }
+  try {
+    cached.conn = await cached.promise;
+    return cached.conn;
   } catch (error: any) {
-    console.warn(`[Database] Connection notice: ${error.message}. Target database is '${TARGET_DB_NAME}'.`);
+    cached.promise = null; // Clear so subsequent requests can retry
+    console.error(`[Database Error] Failed to connect to MongoDB: ${error.message}`);
+    throw error;
   }
 }
+

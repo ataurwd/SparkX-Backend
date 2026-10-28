@@ -37,5 +37,7 @@ const MessageSchema = new Schema<IMessage>(
 );
 
 MessageSchema.index({ organizationId: 1, channelName: 1, createdAt: -1 });
+MessageSchema.index({ organizationId: 1, senderId: 1, readBy: 1 });
+MessageSchema.index({ organizationId: 1, channelName: 1, readBy: 1 });
 
 export const Message = mongoose.model<IMessage>('Message', MessageSchema);

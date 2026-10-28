@@ -3,6 +3,8 @@ import { authenticate } from '../../middleware/auth.middleware';
 import {
   getMessages,
   sendMessage,
+  getUnreadMessageCounts,
+  markMessagesAsRead,
   getAnnouncements,
   createAnnouncement,
   acknowledgeAnnouncement,
@@ -15,6 +17,8 @@ const router = Router();
 // Messages
 router.get('/messages', authenticate, getMessages);
 router.post('/messages', authenticate, sendMessage);
+router.get('/messages/unread-counts', authenticate, getUnreadMessageCounts);
+router.post('/messages/read', authenticate, markMessagesAsRead);
 
 // Announcements
 router.get('/announcements', getAnnouncements);

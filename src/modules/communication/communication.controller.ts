@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import mongoose from 'mongoose';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import { Message } from '../../models/Message';
 import { Announcement } from '../../models/Announcement';
@@ -90,7 +91,126 @@ export const getMessages = async (req: AuthenticatedRequest, res: Response): Pro
       .sort({ createdAt: 1 })
       .limit(150);
 
+    // Asynchronously mark messages in this channel as read by the current user
+    if (userId && orgId && filter.channelName) {
+      const userObjId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+      const orgObjId = mongoose.Types.ObjectId.isValid(orgId) ? new mongoose.Types.ObjectId(orgId) : orgId;
+      Message.updateMany(
+        {
+          organizationId: orgObjId,
+          channelName: filter.channelName,
+          senderId: { $ne: userObjId },
+          readBy: { $ne: userObjId }
+        },
+        { $addToSet: { readBy: userObjId } }
+      ).exec().catch(() => {});
+    }
+
     res.status(200).json({ success: true, data: messages });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const getUnreadMessageCounts = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const orgId = req.user?.organizationId;
+    const userId = req.user?.userId;
+
+    if (!orgId || !userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const userObjId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+    const orgObjId = mongoose.Types.ObjectId.isValid(orgId) ? new mongoose.Types.ObjectId(orgId) : orgId;
+
+    // Aggregate unread messages by channelName
+    const unreadAgg = await Message.aggregate([
+      {
+        $match: {
+          organizationId: orgObjId,
+          $and: [
+            { senderId: { $ne: userObjId } },
+            { readBy: { $ne: userObjId } }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: '$channelName',
+          count: { $sum: 1 },
+          lastMessage: { $last: '$content' },
+          lastSenderName: { $last: '$senderName' },
+          lastCreatedAt: { $last: '$createdAt' }
+        }
+      }
+    ]);
+
+    const countsByChannel: Record<string, number> = {};
+    let totalUnread = 0;
+
+    for (const item of unreadAgg) {
+      if (item._id) {
+        countsByChannel[item._id] = item.count;
+        totalUnread += item.count;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalUnread,
+        countsByChannel,
+        details: unreadAgg
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+export const markMessagesAsRead = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const orgId = req.user?.organizationId;
+    const userId = req.user?.userId;
+    const { channelName, messageIds } = req.body;
+
+    if (!orgId || !userId) {
+      res.status(401).json({ success: false, message: 'Unauthorized' });
+      return;
+    }
+
+    const userObjId = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : userId;
+    const orgObjId = mongoose.Types.ObjectId.isValid(orgId) ? new mongoose.Types.ObjectId(orgId) : orgId;
+
+    const filter: any = {
+      organizationId: orgObjId,
+      senderId: { $ne: userObjId }
+    };
+
+    if (channelName) {
+      filter.channelName = channelName;
+    }
+
+    if (Array.isArray(messageIds) && messageIds.length > 0) {
+      filter._id = {
+        $in: messageIds.map((id: string) =>
+          mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id
+        )
+      };
+    }
+
+    const result = await Message.updateMany(filter, {
+      $addToSet: { readBy: userObjId }
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        modifiedCount: result.modifiedCount
+      }
+    });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -54,6 +54,28 @@ app.use((req, res, next) => {
   next();
 });
 
+// Database Connection Middleware
+// Guarantees DB is connected before any query runs (crucial for Vercel Serverless)
+app.use(async (req, res, next) => {
+  // Allow root and health check without blocking on DB
+  if (req.path === '/' || req.path === '/api/health' || req.url === '/' || req.url === '/api/health') {
+    connectDB().catch(() => {});
+    return next();
+  }
+
+  try {
+    await connectDB();
+    next();
+  } catch (error: any) {
+    console.error('[Database Middleware Error]:', error?.message || error);
+    res.status(500).json({
+      success: false,
+      error: 'Database connection failed',
+      details: error?.message || 'Check MONGODB_URI and MongoDB Atlas Network Access (0.0.0.0/0).'
+    });
+  }
+});
+
 // Core API Routes
 app.get('/api/health', getHealth);
 app.post('/api/upload/image', uploadImageHandler);
@@ -97,10 +119,14 @@ app.get('/', (req, res) => {
   });
 });
 
-// Start Server immediately and connect to DB concurrently
-app.listen(PORT, () => {
-  console.log(`[SparkX Server] Running on port ${PORT}`);
-  connectDB();
-});
+// Start Server locally or in long-running container (Vercel manages the serverless HTTP lifecycle)
+if (process.env.VERCEL !== '1' && process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`[SparkX Server] Running on port ${PORT}`);
+    connectDB().catch((err) => {
+      console.warn(`[SparkX Server] Initial DB connection notice: ${err?.message}`);
+    });
+  });
+}
 
 export default app;
